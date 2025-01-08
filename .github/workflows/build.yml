@@ -37,6 +37,12 @@ jobs:
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
         restore-keys: ${{ runner.os }}-nuget-
 
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v2
+
+    - name: Nuget restore dependencies
+      run: nuget restore ${{ env.Solution }}
+
     - name: Dotnet restore dependencies
       run: dotnet restore ${{ env.Solution }}
 
