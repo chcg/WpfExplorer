@@ -1,0 +1,67 @@
+name: Continuous Integration
+
+permissions:
+  contents: read
+  pull-requests: write
+
+on: [push, pull_request]
+
+jobs:
+  buildWindows:
+    name: Windows Build
+    runs-on: windows-latest
+    environment: sign
+    env:
+      Solution: main/${{ github.event.repository.name }}.sln
+
+    steps:
+    - name: Checkout Main for ${{ github.event.repository.name }}
+      uses: actions/checkout@v4
+      with:
+        path: main
+
+    - name: Add SignKeys
+      uses: Bassman2/SignKey@v1
+      with:
+        file: Bassman.snk
+        key: BwIAAAAkAABSU0EyAAQAAAEAAQB3fh7Q+BUJCmpFk4VNvG/JTCdMzq6xGsrl499Bh57Ex8egaCS7uHxRIw+QGIn8+zxfbtzBDIblZkb3geFaUsgzJEy9FxmK4eCTMyWILzJ6s5B7H+r8WmOlnkkeAC/gTxiAnYDUcYEre5K/eXQ2E4AurwvRemTRQ+Jkji9YPUz+zq1Pul9SkiqhhkDVWzTdxwXtjv+sRI2724TnvgkQhf/ZfpboDK/BJf+dqFwf416MY+VPRpWyo3LS1cr2Pa2gyekz+6rtGP4bqIQuyAco6DA+YQ3upqTUUJV13tE4Au/Z5jmaxLZiScbLuFf+dGYBYc5KiQQp3JiYarLQXRJd9ajiHToWROU1P4iBgAg5L3YK8lceUrv1wcgpZHR5btmJx74LPQu/OfaH/8Bjl4bAjlDIw0n3MfFHsRr2F5SXJkk/MNsNsPBpTiQGgNHNwnZY6DBPFCn49MuQjNbR4mE7IT+eEhsPAOfg5AkJJywcR1Y7HMH8elNEDpW8SPKtLCeZvByhEiETmA9dR2wL/ZHb+YqBbVjMqBc72shED1L15CTl99/yaQWl1KVedt7gwlGAOVAl5xVvVfQpqmma8myKkpuicbvEPyyiH4Yh5rl1q5Tai4PxAxV7Gs7Wi2/daBc5XeusSqxOb8CFSozX3BsJ88Wlkr58ebhbrsfMwXDMvtw1PB9EwiQXx0OM0iFaLe2Ixpaql8a1lX5y4FFJBXKITXiGvF54/oBqqO4cnFRAY1SEieAMlTTt6xTY1dQJP+sh1zQ=
+
+    - name: Install SHFB
+      uses: Bassman2/setup-SHFB@v1
+      if: ${{ hashFiles( 'main/Doc/*/*.shfbproj' ) != '' }}
+
+    - name: Cache packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+        restore-keys: ${{ runner.os }}-nuget-
+
+    - name: Dotnet restore dependencies
+      run: dotnet restore ${{ env.Solution }}
+
+    - name: Build Debug
+      run: dotnet build ${{ env.Solution }} -c Debug --no-restore
+
+    - name: Build Release
+      run: dotnet build ${{ env.Solution }} -c Release --no-restore
+
+    - name: Nuget pack nuspec
+      working-directory: main/Nuget
+      run: nuget pack ${{ github.event.repository.name }}.nuspec -properties Configuration=Release
+      if: ${{ hashFiles( 'main/Nuget/*.nuspec' ) != '' }}
+
+    - name: Upload nuget pack artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.event.repository.name }}NugetPackage.zip
+        path: main/Nuget/*.nupkg
+      if: ${{ hashFiles( 'main/Nuget/*.nuspec' ) != '' }}
+
+    - name: Upload documentation artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.event.repository.name }}Doc.zip
+        path: main/Doc/${{ github.event.repository.name }}Doc/Help/${{ github.event.repository.name }}.chm
+      if: ${{ hashFiles( 'main/Doc/*/*.shfbproj' ) != '' }}
+
